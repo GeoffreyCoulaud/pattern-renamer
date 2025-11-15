@@ -28,7 +28,7 @@ class RenameItemData(GObject.GObject):
         self.mistake = mistake
 
 
-class RenameItemWidget(Gtk.CenterBox):
+class RenameItemWidget(Gtk.Box):
     """Rename item widget"""
 
     # --- Inbound properties
@@ -43,9 +43,10 @@ class RenameItemWidget(Gtk.CenterBox):
     def mistake_setter(self, value: RenameDestinationMistake | None) -> None:
         self.__mistake = value
         if value:
-            self.add_css_class("error")
+            self.__mistake_label.set_text(value.message)
+            self.__mistake_revealer.set_reveal_child(True)
         else:
-            self.remove_css_class("error")
+            self.__mistake_revealer.set_reveal_child(False)
 
     picked_path = GObject.Property(type=str, default="")
     renamed_path = GObject.Property(type=str, default="")
@@ -55,6 +56,8 @@ class RenameItemWidget(Gtk.CenterBox):
     __picked_label: Gtk.Label
     __renamed_label: Gtk.Label
     __separator: Gtk.Label
+    __mistake_label: Gtk.Label
+    __mistake_revealer: Gtk.Revealer
 
     def __wrap_label_for_sizing(self, widget: Gtk.Widget) -> Gtk.Widget:
         return build(
@@ -67,6 +70,9 @@ class RenameItemWidget(Gtk.CenterBox):
         )
 
     def __build(self) -> None:
+        self.set_orientation(Gtk.Orientation.VERTICAL)
+        self.set_spacing(6)
+
         label_props = Properties(
             wrap=True,
             wrap_mode=Pango.WrapMode.WORD_CHAR,
@@ -112,12 +118,46 @@ class RenameItemWidget(Gtk.CenterBox):
             )
         )
 
-        self.set_start_widget(self.__wrap_label_for_sizing(self.__picked_label))
-        self.set_center_widget(self.__separator)
-        self.set_end_widget(self.__wrap_label_for_sizing(self.__renamed_label))
+        center_box = build(
+            Gtk.CenterBox
+            + Children(
+                self.__wrap_label_for_sizing(self.__picked_label),
+                self.__separator,
+                self.__wrap_label_for_sizing(self.__renamed_label),
+            )
+        )
 
-        if self.__mistake:
-            self.add_css_class("error")
+        self.__mistake_label = build(
+            Gtk.Label
+            + Properties(
+                wrap=True,
+                wrap_mode=Pango.WrapMode.WORD_CHAR,
+                ellipsize=Pango.EllipsizeMode.NONE,
+                halign=Gtk.Align.START,
+            )
+        )
+
+        mistake_line = build(
+            Gtk.Box
+            + Properties(
+                orientation=Gtk.Orientation.HORIZONTAL,
+                css_classes=["error"],
+                spacing=6,
+            )
+            + Children(
+                Gtk.Image + Properties(icon_name="dialog-warning-symbolic"),
+                self.__mistake_label,
+            )
+        )
+
+        self.__mistake_revealer = build(
+            Gtk.Revealer
+            + Properties(transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+            + Children(mistake_line)
+        )
+
+        self.append(center_box)
+        self.append(self.__mistake_revealer)
 
     def __init__(self) -> None:
         self.set_css_name("rename-item")

@@ -206,6 +206,19 @@ class WidgetBuilder(Generic[_BuiltWidget]):
                 raise e
             widget.set_content(resolved[0])
 
+        # Gtk.CenterBox
+        elif isinstance(widget, Gtk.CenterBox):
+            try:
+                self.__check_n_children(widget, 3, resolved)
+            except ValueError as e:
+                logging.info("Gtk.CenterBox must receive 3 untyped children.")
+                logging.info("To set children individually, use TypedChild")
+                raise e
+            start, center, end = resolved
+            widget.set_start_widget(start)
+            widget.set_center_widget(center)
+            widget.set_end_widget(end)
+
         # Adw.ViewStack, Adw.NavigationView
         elif isinstance(widget, Adw.ViewStack) or isinstance(
             widget, Adw.NavigationView
@@ -306,6 +319,16 @@ class WidgetBuilder(Generic[_BuiltWidget]):
             for t, child in resolved:
                 if t == "header-suffix":
                     widget.set_header_suffix(child)
+
+        # Gtk.CenterBox
+        elif isinstance(widget, Gtk.CenterBox):
+            for t, child in resolved:
+                if t == "start":
+                    widget.set_start_widget(child)
+                if t == "center":
+                    widget.set_center_widget(child)
+                if t == "end":
+                    widget.set_end_widget(child)
 
     def __apply_property_bindings(self, widget: _BuiltWidget) -> None:
         """Apply property bindings to the widget"""

@@ -94,12 +94,6 @@ class RenamingPage(Adw.NavigationPage):
         else:
             self.__replace_pattern_editable.remove_css_class(ERROR_CSS_CLASS)
 
-        # Update the info banner
-        self.__info_banner.set_revealed(bool(mistakes))
-        if mistakes:
-            self.__info_banner.set_title(mistakes[0].message)
-            self.__info_banner.set_button_label(mistakes[0].fix_action)
-
         # Update the indexed mistakes
         self.__indexed_rename_destination_mistakes = {
             m.culprit_index: m
@@ -117,7 +111,6 @@ class RenamingPage(Adw.NavigationPage):
 
     __regex_editable: Adw.EntryRow
     __replace_pattern_editable: Adw.EntryRow
-    __info_banner: Adw.Banner
 
     def __get_menu_model(self) -> Gio.Menu:
         # Create a radio menu with 3 items for rename target selection.
@@ -181,13 +174,6 @@ class RenamingPage(Adw.NavigationPage):
             + TypedChild("end", Gtk.Box + Children(apply_button, menu_button))
         )
 
-        # Collapsible info banner
-        self.__info_banner = build(
-            Adw.Banner
-            + Properties(css_classes=["warning"], button_label=_("View"))
-            + Handlers(button_clicked=self.__on_mistake_banner_button_clicked)
-        )
-
         # Regex section
         self.__regex_editable = build(
             Adw.EntryRow
@@ -226,7 +212,7 @@ class RenamingPage(Adw.NavigationPage):
                 margin_bottom=margin,
                 margin_start=margin,
                 margin_end=margin,
-                show_separators=True,
+                show_separators=False,
             )
         )
         items_view = build(
@@ -246,7 +232,7 @@ class RenamingPage(Adw.NavigationPage):
                 "content",
                 Gtk.Box
                 + Properties(orientation=Gtk.Orientation.VERTICAL)
-                + Children(self.__info_banner, regex_section, items_view),
+                + Children(regex_section, items_view),
             )
         )
 
