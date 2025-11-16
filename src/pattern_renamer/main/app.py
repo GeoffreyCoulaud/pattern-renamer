@@ -2,6 +2,7 @@
 
 import gettext
 import locale
+import logging
 import os
 import signal
 import sys
@@ -18,6 +19,7 @@ from pattern_renamer.main.build_constants import (
     APP_SLUG,
     LOCALE_DIR,
     PKG_DATA_DIR,
+    PROFILE,
 )  # type: ignore
 from pattern_renamer.main.main_model import MainModel
 from pattern_renamer.main.types.action_names import ActionNames
@@ -48,11 +50,16 @@ class App(Adw.Application):
     __regex_action: Gio.Action
     __replace_pattern_action: Gio.Action
 
+    def __setup_logging(self) -> None:
+        level = logging.DEBUG if PROFILE == "development" else logging.INFO
+        logging.basicConfig(level=level)
+
     def __init__(self) -> None:
         super().__init__(
             application_id=APP_ID,
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
+        self.__setup_logging()
         self.__files_picker = Gtk.FileDialog(
             title=_("Select files to rename"),
             modal=True,
@@ -200,11 +207,42 @@ class App(Adw.Application):
         except GLib.Error:
             return
 
-        paths = [
-            cast(Gio.File | None, paths_list_model.get_item(i).get_path())  # type: ignore
+        gio_files = paths = [
+            item
             for i in range(paths_list_model.get_n_items())
+            if (item := cast(Gio.File | None, paths_list_model.get_item(i))) is not None
         ]
-        self.__model.picked_paths = [path for path in paths if path is not None]
+
+        # Only log file infos in development profile
+        # Getting file infos can be slow on some systems
+        if PROFILE == "development":
+            for gio_file in gio_files:
+                self.__log_file_infos(gio_file)
+
+        paths = [
+            path
+            for gio_file in gio_files
+            # Try to get the host path (for flatpak support) then the regular path
+            if (path := self.__get_file_host_path(gio_file) or gio_file.get_path())
+            is not None
+        ]
+        self.__model.picked_paths = paths
+
+    def __log_file_infos(self, gio_file: Gio.File) -> None:
+        """Log all available info about a `Gio.File` (for debugging purposes)."""
+        logging.debug("File: %s", gio_file.get_path())
+        info = gio_file.query_info("*", Gio.FileQueryInfoFlags.NONE)
+        attributes = a if (a := info.list_attributes()) is not None else []
+        for attribute in attributes:
+            value = info.get_attribute_as_string(attribute)
+            logging.debug("\t%s: %s", attribute, value)
+
+    def __get_file_host_path(self, gio_file: Gio.File) -> str | None:
+        """Get the host path of a `Gio.File` when sandboxed in flatpak."""
+        flags = Gio.FileQueryInfoFlags.NONE
+        info = gio_file.query_info("xattr::document-portal.host-path", flags)
+        host_path = info.get_attribute_as_string("xattr::document-portal.host-path")
+        return host_path
 
 
 def main():
