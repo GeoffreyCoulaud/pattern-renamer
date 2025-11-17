@@ -1,11 +1,15 @@
 # ruff: noqa: E402
 
 import gettext
+import json
 import locale
 import logging
 import os
 import signal
+import subprocess
 import sys
+from pathlib import Path
+from pprint import pformat
 from typing import cast
 
 import gi  # type: ignore
@@ -207,42 +211,16 @@ class App(Adw.Application):
         except GLib.Error:
             return
 
-        gio_files = paths = [
+        gio_files = [
             item
             for i in range(paths_list_model.get_n_items())
             if (item := cast(Gio.File | None, paths_list_model.get_item(i))) is not None
         ]
-
-        # Only log file infos in development profile
-        # Getting file infos can be slow on some systems
-        if PROFILE == "development":
-            for gio_file in gio_files:
-                self.__log_file_infos(gio_file)
-
-        paths = [
+        self.__model.picked_paths = [
             path
-            for gio_file in gio_files
-            # Try to get the host path (for flatpak support) then the regular path
-            if (path := self.__get_file_host_path(gio_file) or gio_file.get_path())
-            is not None
+            for path in map(self.__model.get_gio_file_path, gio_files)
+            if path is not None
         ]
-        self.__model.picked_paths = paths
-
-    def __log_file_infos(self, gio_file: Gio.File) -> None:
-        """Log all available info about a `Gio.File` (for debugging purposes)."""
-        logging.debug("File: %s", gio_file.get_path())
-        info = gio_file.query_info("*", Gio.FileQueryInfoFlags.NONE)
-        attributes = a if (a := info.list_attributes()) is not None else []
-        for attribute in attributes:
-            value = info.get_attribute_as_string(attribute)
-            logging.debug("\t%s: %s", attribute, value)
-
-    def __get_file_host_path(self, gio_file: Gio.File) -> str | None:
-        """Get the host path of a `Gio.File` when sandboxed in flatpak."""
-        flags = Gio.FileQueryInfoFlags.NONE
-        info = gio_file.query_info("xattr::document-portal.host-path", flags)
-        host_path = info.get_attribute_as_string("xattr::document-portal.host-path")
-        return host_path
 
 
 def main():

@@ -1,8 +1,12 @@
+import logging
 import re
+import subprocess
 import unicodedata
 from collections import defaultdict
 from pathlib import Path
+from pprint import pformat
 from re import Pattern
+from subprocess import CalledProcessError
 
 from gi.repository import Gio, GObject  # type: ignore
 from pathvalidate import ValidationError, validate_filepath
@@ -258,3 +262,80 @@ class MainModel(GObject.Object):
             Path(renamed).rename(picked)
         self.app_state = AppState.RENAMING
         self.is_undo_enabled = False
+
+    def get_gio_file_path(self, gio_file: Gio.File) -> str | None:
+        """Get the path of a `Gio.File`, handling xdg portal if necessary."""
+        return (
+            self.__get_file_host_path(gio_file)
+            if False and self.__is_file_from_document_portal(gio_file)
+            else gio_file.get_path()
+        )
+
+    def __is_file_from_document_portal(self, gio_file: Gio.File) -> bool:
+        """Check if the `Gio.File` is from the document portal."""
+        attribute = "xattr::document-portal.host-path"
+        return gio_file.query_info(
+            attribute, Gio.FileQueryInfoFlags.NONE
+        ).has_attribute(attribute)
+
+    def __get_file_host_path(self, gio_file: Gio.File) -> str | None:
+        """
+        Get the real path of a file from the document portal.<br/>
+        Necessary for proper Flatpak support.
+        """
+
+        # This is necessary because `xattr::document-portal.host-path`
+        # may have decoding issues.
+        #
+        # For example, this path:
+        # /home/geoffrey/Téléchargements/tests/python-toulouse.xcf
+        #
+        # Appears as:
+        # /home/geoffrey/T\xc3\xa9l\xc3\xa9chargements/tests/python-toulouse.xcf
+        #
+        # Even reparsing would not work for a path with "\xc3\xa9" in its name
+        # (literally a backslash, then x, etc.)
+        # It would be wrongly interpreted as "é".
+
+        # Prepare
+        path = gio_file.get_path()
+        if path is None:
+            logging.warning("Gio.File has no path")
+            return None
+        file_id = Path(path).parent.name
+
+        # Call gdbus to get the host path
+        cmd = [
+            "gdbus",
+            "call",
+            "--session",
+            "--dest",
+            "org.freedesktop.portal.Documents",
+            "--object-path",
+            "/org/freedesktop/portal/documents",
+            "--method",
+            "org.freedesktop.portal.Documents.GetHostPaths",
+            f"['{file_id}']",
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            process_out = result.stdout.strip()
+            logging.debug("gdbus result: %s", process_out)
+            # gdbus prints a tuple, e.g.: ({"9550b584": b"/home/..."},)
+            # Note: eval is used here for simplicity because gdbus is trusted
+            raw_host_path = eval(process_out)[0][file_id]
+        except (CalledProcessError, KeyError, IndexError) as e:
+            logging.warning("Error getting host path", exc_info=e)
+            return None
+
+        # Process the result
+        if isinstance(raw_host_path, str):
+            return raw_host_path
+        if isinstance(raw_host_path, bytes):
+            try:
+                return raw_host_path.decode("utf-8")
+            except UnicodeDecodeError as e:
+                msg = "Error decoding host path %s"
+                logging.warning(msg, pformat(raw_host_path), exc_info=e)
+        logging.warning("Host path is neither str nor bytes")
+        return None
