@@ -1,15 +1,11 @@
 # ruff: noqa: E402
 
 import gettext
-import json
 import locale
 import logging
 import os
 import signal
-import subprocess
 import sys
-from pathlib import Path
-from pprint import pformat
 from typing import cast
 
 import gi  # type: ignore
@@ -218,7 +214,8 @@ class App(Adw.Application):
         ]
         self.__model.picked_paths = [
             path
-            for path in map(self.__model.get_gio_file_path, gio_files)
+            for gio_file in gio_files
+            if (path := gio_file.get_path())
             if path is not None
         ]
 
