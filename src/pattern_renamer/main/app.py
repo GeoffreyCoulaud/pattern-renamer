@@ -226,11 +226,11 @@ def main():
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    # Only use bindtextdomain on Linux, as it's not available on macOS
+    # Only use locale functions on Linux, as they're not available on macOS
     if platform.system() == "Linux":
         locale.bindtextdomain(APP_SLUG, LOCALE_DIR)
+        locale.textdomain(APP_SLUG)
 
-    locale.textdomain(APP_SLUG)
     gettext.install(APP_SLUG, LOCALE_DIR)
 
     resource = Gio.Resource.load(os.path.join(PKG_DATA_DIR, f"{APP_SLUG}.gresource"))
