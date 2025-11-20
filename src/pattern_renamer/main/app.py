@@ -4,6 +4,7 @@ import gettext
 import locale
 import logging
 import os
+import platform
 import signal
 import sys
 from typing import cast
@@ -224,7 +225,11 @@ def main():
     """The application's entry point."""
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-    locale.bindtextdomain(APP_SLUG, LOCALE_DIR)
+
+    # Only use bindtextdomain on Linux, as it's not available on macOS
+    if platform.system() == "Linux":
+        locale.bindtextdomain(APP_SLUG, LOCALE_DIR)
+
     locale.textdomain(APP_SLUG)
     gettext.install(APP_SLUG, LOCALE_DIR)
 
