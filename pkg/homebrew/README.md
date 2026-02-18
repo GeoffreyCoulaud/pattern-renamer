@@ -5,17 +5,7 @@ macOS.
 
 ## Installation
 
-Users can install Pattern Renamer in several ways:
-
-### Option 1: Direct Installation
-
-```bash
-brew install --HEAD --formula ./pkg/homebrew/pattern-renamer.rb
-```
-
-### Option 2: From Tap (Recommended for distribution)
-
-Create a tap repository named `homebrew-pattern-renamer`:
+Create a tap repository
 
 ```bash
 brew tap geoffreycoulaud/pattern-renamer
